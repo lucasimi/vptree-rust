@@ -15,19 +15,19 @@ fn partition<T: PartialOrd>(vec: &mut [T], k: usize) -> usize {
 }
 
 pub fn quick_select<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
-    if vec.len() < 2 {
+    if k >= vec.len() {
         return;
     }
-    let mut _higher: usize = k;
-    let mut _vec = &mut vec[..];
-    let mut _k = k;
-    while _higher != _k + 1 {
-        _higher = partition(_vec, _k);
-        if k < _higher - 1 {
-            _vec = &mut _vec[0.._higher];
-        } else {
-            _vec = &mut _vec[_higher..];
-            _k -= _higher - 1;
+    let mut higher: usize = k;
+    let mut arr = &mut vec[..];
+    let mut idx = k;
+    while higher != idx + 1 {
+        higher = partition(arr, idx);
+        if higher > idx + 1 {
+            arr = &mut arr[..higher];
+        } else if higher < idx + 1 {
+            arr = &mut arr[higher..];
+            idx -= higher;
         }
     }
 }
@@ -41,13 +41,26 @@ mod tests {
     #[test]
     fn test_partition_empty() {
         let mut v: Vec<i32> = vec![];
-        partition(&mut v, 1);
+        assert_eq!(partition(&mut v, 0), 0);
+        assert_eq!(partition(&mut v, 1), 0);
+        assert_eq!(partition(&mut v, 2), 0);
+    }
+
+    #[test]
+    fn test_partition_singleton() {
+        let mut v: Vec<i32> = vec![0];
+        assert_eq!(partition(&mut v, 0), 1);
+        assert_eq!(partition(&mut v, 1), 1);
+        assert_eq!(partition(&mut v, 2), 1);
     }
 
     #[test]
     fn test_partition_full() {
         let mut v = vec![-1, 4, -4, 1, -2, -3];
-        let h = partition(&mut v, 3);
+        let k = 3;
+        let val = v[k];
+        let h = partition(&mut v, k);
+        assert_eq!(v[h - 1], val);
         for i in 0..h {
             assert_eq!(v[i] <= v[h - 1], true);
         }
@@ -59,14 +72,30 @@ mod tests {
     #[test]
     fn test_quick_select_empty() {
         let mut v: Vec<i32> = vec![];
+        quick_select(&mut v, 0);
+        quick_select(&mut v, 1);
+        quick_select(&mut v, 2);
+    }
+
+    #[test]
+    fn test_quick_select_singleton() {
+        let mut v: Vec<i32> = vec![0];
+        quick_select(&mut v, 0);
+        quick_select(&mut v, 1);
         quick_select(&mut v, 2);
     }
 
     #[test]
     fn test_quick_select_full() {
-        let mut _v = vec![-1, 4, -4, 1, -2, -3];
-        quick_select(&mut _v, 2);
-        assert_eq!(_v[2], -2);
+        let mut v = vec![-1, 4, -4, 1, -2, -3];
+        let k = 2;
+        quick_select(&mut v, k);
+        for i in 0..k {
+            assert_eq!(v[i] <= v[k], true);
+        }
+        for i in k..v.len() {
+            assert_eq!(v[i] >= v[k], true);
+        }
     }
 
 }
