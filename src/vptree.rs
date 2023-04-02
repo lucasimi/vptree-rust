@@ -40,12 +40,6 @@ pub struct VPTree<'a, T: 'a> {
     metric: Metric<T>
 }
 
-struct VPNode<'a, T: 'a> {
-    data: &'a T,
-    left: Option<Box<VPNode<'a, T>>>,
-    right: Option<Box<VPNode<'a, T>>>
-}
-
 fn process_slice<T>(vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     let pivot: usize = fastrand::usize(0..vec.len());
     vec.swap(pivot, 0);
@@ -53,7 +47,6 @@ fn process_slice<T>(vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     for i in 0..vec.len() {
         vec[i].radius = metric(vec[0].center, vec[i].center);
     }
-    println!("len={:?}, mid={:?}", vec[1..].len(), mid);
     utils::quick_select(&mut vec[1..], mid);
     vec[0].radius = vec[mid].radius;
 }
@@ -87,13 +80,13 @@ fn build_iter<T>(vp_vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     }
 }
 
-pub fn search<'a, T: 'a>(vp_vec: VPTree<'a, T>, metric: Metric<T>, target: &T, eps: Scalar) -> Vec<&'a T> {
+pub fn search<'a, T: 'a>(vp_vec: VPTree<'a, T>, target: &T, eps: Scalar) -> Vec<&'a T> {
     let mut results: Vec<&T> = vec![];
     let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vp_vec.vp_vec.len());
     stack.push(&vp_vec.vp_vec);
     while let Some(vec) = stack.pop() {
         let center = &vec[0];
-        let dist = metric(center.center, target);
+        let dist = (vp_vec.metric)(center.center, target);
         let mid = 1 + (vec.len() - 1) / 2;
         if dist <= eps {
             results.push(center.center);
@@ -115,15 +108,31 @@ mod tests {
     use crate::vptree::Circle;
 
     #[test]
-    fn test_build_full() {
+    fn test_build_sample() {
         let dist: Metric<i32> = |n: &i32, m: &i32| {n - m}.abs() as f32;
         let mut _v = vec![-1, 4, -4, 1, -2, -3];
         let vp_vec = build(&mut _v, dist);
-        check(&vp_vec.vp_vec, dist);
+        check_vptree_property(&vp_vec.vp_vec, dist);
         println!("Transformed {:?}", vp_vec.vp_vec);
     }
 
-    fn check<T>(vp_vec: &[Circle<T>], dist: Metric<T>) -> () {
+    //#[test]
+    fn test_build_random() {
+        let dist: Metric<i32> = |n: &i32, m: &i32| {n - m}.abs() as f32;
+        let mut _v = generate(100);
+        let vp_vec = build(&mut _v, dist);
+        check_vptree_property(&vp_vec.vp_vec, dist);
+    }
+
+    fn generate(n: usize) -> Vec<i32> {
+        let mut vec: Vec<i32> = Vec::with_capacity(n);
+        for _ in 0..n {
+            vec.push(fastrand::i32(0..((n/2) as i32)))
+        }
+        vec
+    }
+
+    fn check_vptree_property<T>(vp_vec: &[Circle<T>], dist: Metric<T>) -> () {
         let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vp_vec.len());
         stack.push(&vp_vec);
         while let Some(v) = stack.pop() {

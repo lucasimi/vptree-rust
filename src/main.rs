@@ -1,9 +1,11 @@
 mod utils;
 mod vptree;
 
+fn dist(x: &i32, y: &i32) -> f32 {
+    (x - y).abs() as f32
+}
+
 fn main() {
-    let mut _v = vec![-4, -2, -3];
-    //build(&_v);
-    utils::quick_select(&mut _v, 2);
-    println!("Hello, world! {:?}", _v);
+    let mut vec = vec![-4, -2, -3];
+    let vptree = vptree::build(&vec, dist);
 }
