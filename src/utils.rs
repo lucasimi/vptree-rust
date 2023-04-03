@@ -18,14 +18,16 @@ pub fn quick_select<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
     if k >= vec.len() {
         return;
     }
-    let mut higher: usize = k;
     let mut arr = &mut vec[..];
     let mut idx = k;
-    while higher != idx + 1 {
-        higher = partition(arr, idx);
-        if higher > idx + 1 {
-            arr = &mut arr[..higher - 1];//arr[.. higher-1]?
-        } else if higher < idx + 1 {
+    loop {
+        let higher = partition(arr, idx);
+        if higher == idx + 1 {
+            return;
+        }
+        else if higher > idx + 1 {
+            arr = &mut arr[..higher - 1];
+        } else {
             arr = &mut arr[higher..];
             idx -= higher;
         }
@@ -38,10 +40,10 @@ mod tests {
 
     use super::partition;
 
-    fn generate(n: usize) -> Vec<i32> {
+    fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
         let mut vec: Vec<i32> = Vec::with_capacity(n);
         for _ in 0..n {
-            vec.push(fastrand::i32(0..((n/2) as i32)))
+            vec.push(fastrand::i32(r.clone()))
         }
         vec
     }
@@ -79,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_partition_random() {
-        let mut v = generate(1000);
+        let mut v = generate(1000, 0..10);
         let k = 500;
         let val = v[k];
         let h = partition(&mut v, k);
@@ -122,9 +124,22 @@ mod tests {
     }
 
     #[test]
+    fn test_quick_select_sample_2() {
+        let mut v = vec![33, 51, 93, 55, 96, 48, 94, 42, 74, 95];
+        let k = 5;
+        quick_select(&mut v, k);
+        for i in 0..k {
+            assert!(v[i] <= v[k]);
+        }
+        for i in k..v.len() {
+            assert!(v[i] >= v[k]);
+        }
+    }
+
+    #[test]
     fn test_quick_select_random() {
-        let mut v = generate(1000);
-        let k = 500;
+        let mut v = generate(10, 0..100);
+        let k = v.len() / 2;
         quick_select(&mut v, k);
         for i in 0..k {
             assert!(v[i] <= v[k]);

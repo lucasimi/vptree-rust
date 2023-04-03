@@ -119,15 +119,15 @@ mod tests {
     //#[test]
     fn test_build_random() {
         let dist: Metric<i32> = |n: &i32, m: &i32| {n - m}.abs() as f32;
-        let mut _v = generate(100);
+        let mut _v = generate(100, 0..1000);
         let vp_vec = build(&mut _v, dist);
         check_vptree_property(&vp_vec.vp_vec, dist);
     }
 
-    fn generate(n: usize) -> Vec<i32> {
+    fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
         let mut vec: Vec<i32> = Vec::with_capacity(n);
         for _ in 0..n {
-            vec.push(fastrand::i32(0..((n/2) as i32)))
+            vec.push(fastrand::i32(r.clone()))
         }
         vec
     }
