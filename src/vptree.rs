@@ -11,6 +11,10 @@ struct Circle<'a, T: 'a> {
     radius: Scalar
 }
 
+fn get_mid<T>(arr: &[T]) -> usize {
+    arr.len() / 2
+}
+
 impl<'a, T: 'a> PartialEq for Circle<'a, T> {
 
     fn eq(&self, other: &Self) -> bool {
@@ -43,12 +47,15 @@ pub struct VPTree<'a, T: 'a> {
 fn process_slice<T>(vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     let pivot: usize = fastrand::usize(0..vec.len());
     vec.swap(pivot, 0);
-    let mid: usize = (vec.len() - 1) / 2;
     for i in 0..vec.len() {
         vec[i].radius = metric(vec[0].center, vec[i].center);
     }
-    utils::quick_select(&mut vec[1..], mid);
-    vec[0].radius = vec[mid].radius;
+    let tail = &mut vec[1..];
+    if !tail.is_empty() {
+        let tail_mid: usize = get_mid(tail);
+        utils::quick_select(tail, tail_mid);
+        vec[0].radius = tail[tail_mid].radius;
+    }
 }
 
 pub fn build<T>(vec: &[T], metric: Metric<T>) -> VPTree<T> {
@@ -64,64 +71,68 @@ pub fn build<T>(vec: &[T], metric: Metric<T>) -> VPTree<T> {
 
 fn build_iter<T>(vp_vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     let mut stack: Vec<&mut [Circle<T>]> = Vec::with_capacity(vp_vec.len());
-    stack.push(vp_vec);
+    if !vp_vec.is_empty() {
+        stack.push(vp_vec);
+    }
     while let Some(vec) = stack.pop() {
         process_slice(vec, metric);
-        if vec.len() > 1 {
-            let mid = (vec.len() - 1) / 2;
-            let (left, right) = vec[1..].split_at_mut(mid);
+        let tail = &mut vec[1..];
+        let mid_tail = get_mid(tail);
+        let (left, right) = tail.split_at_mut(mid_tail);
+        if !left.is_empty() {
+            stack.push(left);
+        }
+        if !right.is_empty() {
+            stack.push(right);
+        }
+    }
+}
+
+pub fn search<'a, T: 'a>(vpt: VPTree<'a, T>, target: &T, eps: Scalar) -> Vec<&'a T> {
+    let mut results: Vec<&T> = vec![];
+    let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vpt.vp_vec.len());
+    if !vpt.vp_vec.is_empty() {
+        stack.push(&vpt.vp_vec);
+    }
+    while let Some(vec) = stack.pop() {
+        let center = &vec[0];
+        let dist = (vpt.metric)(center.center, target);
+        let tail = &vec[1..];
+        let tail_mid = get_mid(tail);
+        if dist <= eps {
+            results.push(center.center);
+        }
+        if dist < center.radius + eps {
+            let left = &tail[..tail_mid];
             if !left.is_empty() {
                 stack.push(left);
             }
+        } 
+        if dist >= center.radius - eps {
+            let right = &tail[tail_mid..];
             if !right.is_empty() {
                 stack.push(right);
             }
         }
     }
-}
-
-pub fn search<'a, T: 'a>(vp_vec: VPTree<'a, T>, target: &T, eps: Scalar) -> Vec<&'a T> {
-    let mut results: Vec<&T> = vec![];
-    let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vp_vec.vp_vec.len());
-    stack.push(&vp_vec.vp_vec);
-    while let Some(vec) = stack.pop() {
-        let center = &vec[0];
-        let dist = (vp_vec.metric)(center.center, target);
-        let mid = 1 + (vec.len() - 1) / 2;
-        if dist <= eps {
-            results.push(center.center);
-        }
-        if dist < center.radius + eps {
-            stack.push(&vec[1..mid]);
-        } 
-        if dist >= center.radius - eps {
-            stack.push(&vec[mid..]);
-        }
-    }
     results
 }
 
+#[cfg(test)]
 mod tests {
 
     use crate::vptree::build;
+    use crate::vptree::search;
+    use crate::vptree::Scalar;
     use crate::vptree::Metric;
     use crate::vptree::Circle;
+    use crate::vptree::VPTree;
+    use std::collections::HashSet;
 
-    #[test]
-    fn test_build_sample() {
-        let dist: Metric<i32> = |n: &i32, m: &i32| {n - m}.abs() as f32;
-        let mut _v = vec![-1, 4, -4, 1, -2, -3];
-        let vp_vec = build(&mut _v, dist);
-        check_vptree_property(&vp_vec.vp_vec, dist);
-        println!("Transformed {:?}", vp_vec.vp_vec);
-    }
+    use super::get_mid;
 
-    //#[test]
-    fn test_build_random() {
-        let dist: Metric<i32> = |n: &i32, m: &i32| {n - m}.abs() as f32;
-        let mut _v = generate(100, 0..1000);
-        let vp_vec = build(&mut _v, dist);
-        check_vptree_property(&vp_vec.vp_vec, dist);
+    fn absdist(n: &i32, m: &i32) -> Scalar {
+        (*n).saturating_sub(*m).saturating_abs() as f32
     }
 
     fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
@@ -132,21 +143,71 @@ mod tests {
         vec
     }
 
-    fn check_vptree_property<T>(vp_vec: &[Circle<T>], dist: Metric<T>) -> () {
-        let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vp_vec.len());
-        stack.push(&vp_vec);
+    fn search_naive<'a, T: 'a>(vec: &'a [T], dist: Metric<T>, target: &T, eps: Scalar) -> Vec<&'a T> {
+        return vec.iter().filter(|&x| dist(target, x) <= eps).collect();
+    }
+
+    fn check_vptree_property<T>(vpt: &VPTree<T>) -> bool {
+        let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vpt.vp_vec.len());
+        if !vpt.vp_vec.is_empty() {
+            stack.push(&vpt.vp_vec);
+        }
         while let Some(v) = stack.pop() {
             if !v.is_empty() {
-                let mid = 1 + (v.len() - 1) / 2;
+                let mid = 1 + get_mid(&v[1..]);
                 for i in 1..mid {
-                    assert!(dist(v[0].center, v[i].center) <= v[0].radius);
+                    if (vpt.metric)(v[0].center, v[i].center) > v[0].radius {
+                        return false;
+                    }
                 }
                 for i in mid..v.len() {
-                    assert!(dist(v[0].center, v[i].center) >= v[0].radius);
+                    if (vpt.metric)(v[0].center, v[i].center) < v[0].radius {
+                        return false;
+                    }
                 }
-                stack.push(&v[1..mid]);
-                stack.push(&v[mid..]);
+                let left = &v[1..mid];
+                let right = &v[mid..];
+                if !left.is_empty() {
+                    stack.push(left);
+                }
+                if !right.is_empty() {
+                    stack.push(right);
+                }
             }
+        }
+        return true;
+    }
+
+    #[test]
+    fn test_build_sample() {
+        let mut vec = vec![-1, 4, -4, 1, -2, -3];
+        let vpt = build(&mut vec, absdist);
+        check_vptree_property(&vpt);
+    }
+
+    #[test]
+    fn test_build_random() {
+        let mut vec = generate(100, 0..1000);
+        let vpt = build(&mut vec, absdist);
+        check_vptree_property(&vpt);
+    }
+
+    quickcheck! {
+        fn prop_build(vec: Vec<i32>) -> bool {
+            let vpt = build(&vec, absdist);
+            check_vptree_property(&vpt)
+        }
+
+        fn prop_search(vec: Vec<i32>, target: i32, eps: Scalar) -> bool {
+            if vec.len() < 3 {
+                return true;
+            }
+            let vpt = build(&vec, absdist);
+            let v1 = search_naive(&vec, absdist, &target, eps);
+            let v2 = search(vpt, &target, eps);
+            let h1: HashSet<&i32> = HashSet::from_iter(v1);
+            let h2: HashSet<&i32> = HashSet::from_iter(v2);
+            return h1 == h2;
         }
     }
 

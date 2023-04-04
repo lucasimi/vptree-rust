@@ -9,3 +9,6 @@ fn main() {
     let mut vec = vec![-4, -2, -3];
     let vptree = vptree::build(&vec, dist);
 }
+
+#[macro_use]
+extern crate quickcheck;

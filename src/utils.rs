@@ -34,10 +34,10 @@ pub fn quick_select<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
-    use crate::utils::quick_select;
-
+    use super::quick_select;
     use super::partition;
 
     fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
@@ -46,6 +46,51 @@ mod tests {
             vec.push(fastrand::i32(r.clone()))
         }
         vec
+    }
+
+    quickcheck! {
+        fn prop_partition(v: Vec<i32>, k: usize) -> bool {
+            if v.is_empty() {
+                return true;
+            }
+            let k_mod = k % v.len();
+            let mut vec: Vec<i32> = v.clone();
+            let val = vec[k_mod];
+            let h = partition(&mut vec, k_mod);
+            assert_eq!(vec[h - 1], val);
+            for i in 0..h {
+                if vec[i] > vec[h - 1] {
+                    return false;
+                }
+            }
+            for i in h..vec.len() {
+                if vec[i] <= vec[h - 1] {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        fn prop_quick_select(v: Vec<i32>, k: usize) -> bool {
+            if v.len() < 2 {
+                return true;
+            }
+            let k_mod = k % v.len();
+            let mut vec: Vec<i32> = v.clone();
+            quick_select(&mut vec, k_mod);
+            let val = vec[k_mod];
+            for i in 0..k_mod {
+                if vec[i] > val {
+                    return false;
+                }
+            }
+            for i in k_mod..vec.len() {
+                if vec[i] < val {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     #[test]
@@ -66,8 +111,8 @@ mod tests {
 
     #[test]
     fn test_partition_sample() {
-        let mut v = vec![-1, 4, -4, 1, -2, -3];
-        let k = 3;
+        let mut v = vec![1, 0];
+        let k = 0;
         let val = v[k];
         let h = partition(&mut v, k);
         assert_eq!(v[h - 1], val);
@@ -112,8 +157,8 @@ mod tests {
 
     #[test]
     fn test_quick_select_sample() {
-        let mut v = vec![-1, 4, -4, 1, -2, -3];
-        let k = 2;
+        let mut v = vec![1, 0];
+        let k = 0;
         quick_select(&mut v, k);
         for i in 0..k {
             assert!(v[i] <= v[k]);
