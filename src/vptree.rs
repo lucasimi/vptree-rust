@@ -88,7 +88,7 @@ fn build_iter<T>(vp_vec: &mut [Circle<T>], metric: Metric<T>) -> () {
     }
 }
 
-pub fn search<'a, T: 'a>(vpt: VPTree<'a, T>, target: &T, eps: Scalar) -> Vec<&'a T> {
+pub fn search<'a, T: 'a>(vpt: &VPTree<'a, T>, target: &T, eps: Scalar) -> Vec<&'a T> {
     let mut results: Vec<&T> = vec![];
     let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vpt.vp_vec.len());
     if !vpt.vp_vec.is_empty() {
@@ -135,19 +135,11 @@ mod tests {
         (*n).saturating_sub(*m).saturating_abs() as f32
     }
 
-    fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
-        let mut vec: Vec<i32> = Vec::with_capacity(n);
-        for _ in 0..n {
-            vec.push(fastrand::i32(r.clone()))
-        }
-        vec
-    }
-
     fn search_naive<'a, T: 'a>(vec: &'a [T], dist: Metric<T>, target: &T, eps: Scalar) -> Vec<&'a T> {
         return vec.iter().filter(|&x| dist(target, x) <= eps).collect();
     }
 
-    fn check_vptree_property<T>(vpt: &VPTree<T>) -> bool {
+    fn check_vptree<T>(vpt: &VPTree<T>) -> bool {
         let mut stack: Vec<&[Circle<T>]> = Vec::with_capacity(vpt.vp_vec.len());
         if !vpt.vp_vec.is_empty() {
             stack.push(&vpt.vp_vec);
@@ -179,32 +171,38 @@ mod tests {
     }
 
     #[test]
-    fn test_build_sample() {
-        let mut vec = vec![-1, 4, -4, 1, -2, -3];
+    fn test_build_empty() {
+        let mut vec = vec![];
         let vpt = build(&mut vec, absdist);
-        check_vptree_property(&vpt);
+        assert!(vpt.vp_vec.is_empty());
+        assert!(check_vptree(&vpt));
+        assert!(search(&vpt, &0, 1.0).is_empty());
     }
 
     #[test]
-    fn test_build_random() {
-        let mut vec = generate(100, 0..1000);
+    fn test_build_sample() {
+        let mut vec = vec![-1, 4, -4, 1, 2, -3];
         let vpt = build(&mut vec, absdist);
-        check_vptree_property(&vpt);
+        assert!(check_vptree(&vpt));
+        assert_eq!(search(&vpt, &-1, 1.0).len(), 1);
+        assert_eq!(search(&vpt, &4, 1.0).len(), 1);
+        assert_eq!(search(&vpt, &-4, 1.0).len(), 2);
+        assert_eq!(search(&vpt, &1, 1.0).len(), 2);
+        assert_eq!(search(&vpt, &2, 1.0).len(), 2);
+        assert_eq!(search(&vpt, &-3, 1.0).len(), 2);
+        assert_eq!(search(&vpt, &0, 1.0).len(), 2);
     }
 
     quickcheck! {
         fn prop_build(vec: Vec<i32>) -> bool {
             let vpt = build(&vec, absdist);
-            check_vptree_property(&vpt)
+            check_vptree(&vpt)
         }
 
         fn prop_search(vec: Vec<i32>, target: i32, eps: Scalar) -> bool {
-            if vec.len() < 3 {
-                return true;
-            }
             let vpt = build(&vec, absdist);
             let v1 = search_naive(&vec, absdist, &target, eps);
-            let v2 = search(vpt, &target, eps);
+            let v2 = search(&vpt, &target, eps);
             let h1: HashSet<&i32> = HashSet::from_iter(v1);
             let h2: HashSet<&i32> = HashSet::from_iter(v2);
             return h1 == h2;
