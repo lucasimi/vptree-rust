@@ -1,49 +1,11 @@
-#[derive(Copy, Clone)]
-pub struct Range {
-    start: usize,
-    bound: usize
-}
-
-impl Range {
-
-    pub fn new(start: usize, bound: usize) -> Range {
-        Range {
-            start: start,
-            bound: bound
-        }
+fn partition<T: PartialOrd>(vec: &mut [T], k: usize) -> usize {
+    if k >= vec.len() {
+        return vec.len();
     }
-
-    pub fn mid(&self) -> usize {
-        self.start + self.bound
-    }
-
-    pub fn len(&self) -> usize {
-        self.bound - self.start
-    }
-
-    pub fn slice_left(&self, split: usize) -> Range {
-        Range::new(self.start, split)
-    }
-
-    pub fn slice_right(&self, split: usize) -> Range {
-        Range::new(split, self.bound)
-    }
-
-    pub fn half_left(&self) -> Range {
-        self.slice_left((self.start + self.bound) / 2)
-    }
-
-    pub fn half_right(&self) -> Range {
-        self.slice_right((self.start + self.bound) / 2)
-    }
-        
-}
-
-fn _partition_slice<T: PartialOrd>(vec: &mut [T], k: usize) -> usize {
     vec.swap(k, 0);
     let mut higher: usize = 1;
     for j in 1..vec.len() {
-        if vec[j] < vec[0] {
+        if vec[j] <= vec[0] {
             vec.swap(higher, j);
             higher += 1;
         }
@@ -52,71 +14,184 @@ fn _partition_slice<T: PartialOrd>(vec: &mut [T], k: usize) -> usize {
     higher
 }
 
-fn _partition<T: PartialOrd>(vec: &mut Vec<T>, range: Range, k: usize) -> usize {
-    vec.swap(k, range.start);
-    let mut higher: usize = range.start + 1;
-    for j in range.start..range.bound {
-        if vec[j] < vec[range.start] {
-            vec.swap(higher, j);
-            higher += 1;
-        }
+pub fn quick_select<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
+    if k >= vec.len() {
+        return;
     }
-    vec.swap(range.start, higher - 1);
-    higher
-}
-
-fn _quick_select_slice<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
-    let mut _higher: usize = k;
-    let mut _vec = &mut vec[..];
-    let mut _k = k;
-    while _higher != _k + 1 {
-        _higher = _partition_slice(_vec, _k);
-        if k < _higher {
-            _vec = &mut _vec[0.._higher];
+    let mut arr = &mut vec[..];
+    let mut idx = k;
+    loop {
+        let higher = partition(arr, idx);
+        if higher == idx + 1 {
+            return;
+        }
+        else if higher > idx + 1 {
+            arr = &mut arr[..higher - 1];
         } else {
-            _vec = &mut _vec[_higher..];
-            _k -= _higher - 1;
+            arr = &mut arr[higher..];
+            idx -= higher;
         }
     }
 }
 
-fn _quick_select<T: PartialOrd>(vec: &mut Vec<T>, range: Range, k: usize) -> () {
-    let mut _range: Range = range;
-    let mut _higher: usize = k;
-    while _higher != k + 1 {
-        _higher = _partition(vec, _range, k);
-        if k < _higher {
-            _range = _range.slice_left(_higher)
-        } else {
-            _range = _range.slice_right(_higher)
-        }
-    }
-}
-
-pub fn quick_select<T: PartialOrd>(vec: &mut Vec<T>, k: usize) -> () {
-    _quick_select(vec, Range::new(0, vec.len()), k);
-}
-
-pub fn quick_select_slice<T: PartialOrd>(vec: &mut [T], k: usize) -> () {
-    _quick_select_slice(vec, k);
-}
-
+#[cfg(test)]
 mod tests {
 
-    use crate::utils::quick_select;
-    use crate::utils::quick_select_slice;
+    use super::quick_select;
+    use super::partition;
 
-    #[test]
-    fn test_quick_select_full() {
-        let mut _v = vec![-1, 4, -4, 1, -2, -3];
-        quick_select(&mut _v, 2);
-        assert_eq!(_v[2], -2);
+    fn generate(n: usize, r: std::ops::Range<i32>) -> Vec<i32> {
+        let mut vec: Vec<i32> = Vec::with_capacity(n);
+        for _ in 0..n {
+            vec.push(fastrand::i32(r.clone()))
+        }
+        vec
+    }
+
+    quickcheck! {
+        fn prop_partition(v: Vec<i32>, k: usize) -> bool {
+            if v.is_empty() {
+                return true;
+            }
+            let k_mod = k % v.len();
+            let mut vec: Vec<i32> = v.clone();
+            let val = vec[k_mod];
+            let h = partition(&mut vec, k_mod);
+            assert_eq!(vec[h - 1], val);
+            for i in 0..h {
+                if vec[i] > vec[h - 1] {
+                    return false;
+                }
+            }
+            for i in h..vec.len() {
+                if vec[i] <= vec[h - 1] {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        fn prop_quick_select(v: Vec<i32>, k: usize) -> bool {
+            if v.len() < 2 {
+                return true;
+            }
+            let k_mod = k % v.len();
+            let mut vec: Vec<i32> = v.clone();
+            quick_select(&mut vec, k_mod);
+            let val = vec[k_mod];
+            for i in 0..k_mod {
+                if vec[i] > val {
+                    return false;
+                }
+            }
+            for i in k_mod..vec.len() {
+                if vec[i] < val {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     #[test]
-    fn test_quick_select_slice_full() {
-        let mut _v = vec![-1, 4, -4, 1, -2, -3];
-        quick_select_slice(&mut _v, 2);
-        assert_eq!(_v[2], -2);
+    fn test_partition_empty() {
+        let mut v: Vec<i32> = vec![];
+        assert_eq!(partition(&mut v, 0), 0);
+        assert_eq!(partition(&mut v, 1), 0);
+        assert_eq!(partition(&mut v, 2), 0);
     }
+
+    #[test]
+    fn test_partition_singleton() {
+        let mut v: Vec<i32> = vec![0];
+        assert_eq!(partition(&mut v, 0), 1);
+        assert_eq!(partition(&mut v, 1), 1);
+        assert_eq!(partition(&mut v, 2), 1);
+    }
+
+    #[test]
+    fn test_partition_sample() {
+        let mut v = vec![1, 0];
+        let k = 0;
+        let val = v[k];
+        let h = partition(&mut v, k);
+        assert_eq!(v[h - 1], val);
+        for i in 0..h {
+            assert!(v[i] <= v[h - 1]);
+        }
+        for i in h..v.len() {
+            assert!(v[i] > v[h - 1]);
+        }
+    }
+
+    #[test]
+    fn test_partition_random() {
+        let mut v = generate(1000, 0..10);
+        let k = 500;
+        let val = v[k];
+        let h = partition(&mut v, k);
+        assert_eq!(v[h - 1], val);
+        for i in 0..h {
+            assert!(v[i] <= v[h - 1]);
+        }
+        for i in h..v.len() {
+            assert!(v[i] > v[h - 1]);
+        }
+    }
+
+    #[test]
+    fn test_quick_select_empty() {
+        let mut v: Vec<i32> = vec![];
+        quick_select(&mut v, 0);
+        quick_select(&mut v, 1);
+        quick_select(&mut v, 2);
+    }
+
+    #[test]
+    fn test_quick_select_singleton() {
+        let mut v: Vec<i32> = vec![0];
+        quick_select(&mut v, 0);
+        quick_select(&mut v, 1);
+        quick_select(&mut v, 2);
+    }
+
+    #[test]
+    fn test_quick_select_sample() {
+        let mut v = vec![1, 0];
+        let k = 0;
+        quick_select(&mut v, k);
+        for i in 0..k {
+            assert!(v[i] <= v[k]);
+        }
+        for i in k..v.len() {
+            assert!(v[i] >= v[k]);
+        }
+    }
+
+    #[test]
+    fn test_quick_select_sample_2() {
+        let mut v = vec![33, 51, 93, 55, 96, 48, 94, 42, 74, 95];
+        let k = 5;
+        quick_select(&mut v, k);
+        for i in 0..k {
+            assert!(v[i] <= v[k]);
+        }
+        for i in k..v.len() {
+            assert!(v[i] >= v[k]);
+        }
+    }
+
+    #[test]
+    fn test_quick_select_random() {
+        let mut v = generate(10, 0..100);
+        let k = v.len() / 2;
+        quick_select(&mut v, k);
+        for i in 0..k {
+            assert!(v[i] <= v[k]);
+        }
+        for i in k..v.len() {
+            assert!(v[i] >= v[k]);
+        }
+    }
+
 }
